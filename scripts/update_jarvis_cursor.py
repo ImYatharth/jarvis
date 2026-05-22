@@ -1,19 +1,62 @@
 #!/usr/bin/env python3
 """Replaces the three Jarvis cursor views with a minimal glowing dot design."""
 
-import re
 import sys
 from pathlib import Path
 
-TARGET = Path(__file__).parent.parent / "Jarvis" / "OverlayWindow.swift"
+# Locate the file from cwd or script location
+candidates = [
+    Path.cwd() / "Jarvis" / "OverlayWindow.swift",
+    Path(__file__).parent.parent / "Jarvis" / "OverlayWindow.swift",
+]
+target = next((p for p in candidates if p.exists()), None)
 
-if not TARGET.exists():
-    print(f"Error: {TARGET} not found")
+if not target:
+    print("ERROR: Jarvis/OverlayWindow.swift not found. Run from the project root.")
     sys.exit(1)
 
-src = TARGET.read_text()
+print(f"Editing: {target}")
+src = target.read_text()
 
-GLYPH = '''\
+# ── Diagnostic ─────────────────────────────────────────────────────────────
+structs = [
+    "JarvisCursorGlyphView",
+    "JarvisListeningCursorView",
+    "JarvisProcessingCursorView",
+]
+for name in structs:
+    key = f"struct {name}"
+    print(f"  {'✓' if key in src else '✗'} {key}")
+
+# ── Struct replacement ──────────────────────────────────────────────────────
+def replace_struct(source: str, name: str, replacement: str) -> str:
+    key = f"struct {name}"
+    idx = source.find(key)
+    if idx == -1:
+        print(f"  SKIP: could not find {key}")
+        return source
+    # Walk back to find 'private ' prefix if present
+    prefix_start = max(0, idx - 8)
+    if source[prefix_start:idx].strip() == "private":
+        idx = prefix_start + source[prefix_start:].index("private")
+    # Find the opening brace
+    brace_idx = source.index("{", idx)
+    depth = 0
+    i = brace_idx
+    while i < len(source):
+        if source[i] == "{":
+            depth += 1
+        elif source[i] == "}":
+            depth -= 1
+            if depth == 0:
+                print(f"  ✓ Replaced {name}")
+                return source[:idx] + replacement + source[i + 1:]
+        i += 1
+    print(f"  SKIP: unmatched braces in {name}")
+    return source
+
+
+GLYPH = """\
 private struct JarvisCursorGlyphView: View {
     var isReturning: Bool = false
 
@@ -35,9 +78,9 @@ private struct JarvisCursorGlyphView: View {
             }
         }
     }
-}'''
+}"""
 
-LISTENING = '''\
+LISTENING = """\
 private struct JarvisListeningCursorView: View {
     let audioPowerLevel: CGFloat
 
@@ -67,9 +110,9 @@ private struct JarvisListeningCursorView: View {
             }
         }
     }
-}'''
+}"""
 
-PROCESSING = '''\
+PROCESSING = """\
 private struct JarvisProcessingCursorView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
@@ -103,41 +146,20 @@ private struct JarvisProcessingCursorView: View {
             }
         }
     }
-}'''
-
-def replace_struct(source: str, struct_name: str, replacement: str) -> str:
-    # Match from `private struct <Name>` to its closing `}` at the same indent level
-    pattern = rf'(private struct {re.escape(struct_name)}: View \{{)'
-    match = re.search(pattern, source)
-    if not match:
-        print(f"Warning: could not find {struct_name}")
-        return source
-
-    start = match.start()
-    depth = 0
-    i = start
-    while i < len(source):
-        if source[i] == '{':
-            depth += 1
-        elif source[i] == '}':
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                return source[:start] + replacement + source[end:]
-        i += 1
-
-    print(f"Warning: could not find closing brace for {struct_name}")
-    return source
+}"""
 
 src = replace_struct(src, "JarvisCursorGlyphView", GLYPH)
 src = replace_struct(src, "JarvisListeningCursorView", LISTENING)
 src = replace_struct(src, "JarvisProcessingCursorView", PROCESSING)
 
-# Shrink the idle cursor frame from 28 to 20
-src = src.replace(
-    "JarvisCursorGlyphView(isReturning: isReturningToCursor)\n                .frame(width: 28, height: 28)",
-    "JarvisCursorGlyphView(isReturning: isReturningToCursor)\n                .frame(width: 20, height: 20)",
-)
+# Shrink idle cursor frame (try both 28 and any existing value)
+for old_w in ["28", "24", "20"]:
+    old = f"JarvisCursorGlyphView(isReturning: isReturningToCursor)\n                .frame(width: {old_w}, height: {old_w})"
+    new = "JarvisCursorGlyphView(isReturning: isReturningToCursor)\n                .frame(width: 20, height: 20)"
+    if old in src:
+        src = src.replace(old, new)
+        print(f"  ✓ Frame updated from {old_w} → 20")
+        break
 
-TARGET.write_text(src)
-print(f"Done — updated {TARGET}")
+target.write_text(src)
+print(f"\nDone — {target} updated. Rebuild in Xcode now.")
