@@ -273,7 +273,7 @@ struct OrbitCursorOverlayView: View {
             }
 
             OrbitCursorGlyphView(isReturning: isReturningToCursor)
-                .frame(width: 28, height: 28)
+                .frame(width: 20, height: 20)
                 .rotationEffect(.degrees(triangleRotationDegrees))
                 .scaleEffect(orbitFlightScale)
                 .opacity(orbitCursorIsVisibleOnThisScreen && (orbitManager.voiceState == .idle || orbitManager.voiceState == .responding) ? cursorOpacity : 0)
@@ -821,28 +821,18 @@ private struct OrbitCursorGlyphView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let cycleProgress = cycleProgress(for: timeline.date, duration: 4.0)
-            let auraOpacity = 0.75 - (0.25 * CGFloat(cos(Double(cycleProgress) * .pi * 2)))
+            let glowPulse = 1.0 + 0.35 * CGFloat(cos(Double(cycleProgress) * .pi * 2))
 
             ZStack {
-                OrbitMarkShape()
-                    .fill(
-                        Color.white.opacity(Double(0.12 * auraOpacity)),
-                        style: FillStyle(eoFill: true, antialiased: true)
-                    )
-                    .overlay(
-                        OrbitMarkShape()
-                            .stroke(
-                                Color.white.opacity(Double(auraOpacity)),
-                                style: StrokeStyle(
-                                    lineWidth: OrbitCursorMetrics.auraLineWidth,
-                                    lineJoin: .round
-                                )
-                            )
-                    )
-                    .frame(width: OrbitCursorMetrics.markSize, height: OrbitCursorMetrics.markSize)
-                    .blur(radius: OrbitCursorMetrics.auraBlurRadius)
+                Circle()
+                    .fill(Color.white.opacity(0.22))
+                    .frame(width: 11, height: 11)
+                    .scaleEffect(glowPulse)
+                    .blur(radius: 3.5)
 
-                OrbitOverlayMarkView()
+                Circle()
+                    .fill(Color.white.opacity(0.93))
+                    .frame(width: 5, height: 5)
             }
         }
     }
@@ -862,17 +852,18 @@ private struct OrbitListeningCursorView: View {
                 c2y: 1.0
             )
             let clampedAudio = max(0, min(audioPowerLevel, 1))
-            let diameter = 4.48 + (resonancePhase * (34.72 + (clampedAudio * 2.4)))
-            let strokeOpacity = max(0, (0.8 + (clampedAudio * 0.08)) * (1 - resonancePhase))
-            let strokeWidth = max(0.56, 1.96 - (1.4 * resonancePhase) + (clampedAudio * 0.12))
+            let ringDiameter = 5 + resonancePhase * (22 + clampedAudio * 6)
+            let ringOpacity = max(0, (0.75 + clampedAudio * 0.15) * (1 - resonancePhase))
+            let strokeWidth = max(0.5, 1.3 - resonancePhase * 0.9)
 
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(Double(strokeOpacity)), lineWidth: strokeWidth)
-                    .frame(width: diameter, height: diameter)
-                    .offset(x: -6.16, y: -6.16)
+                    .stroke(Color.white.opacity(Double(ringOpacity)), lineWidth: strokeWidth)
+                    .frame(width: ringDiameter, height: ringDiameter)
 
-                OrbitOverlayMarkView()
+                Circle()
+                    .fill(Color.white.opacity(0.93))
+                    .frame(width: 5, height: 5)
             }
         }
     }
@@ -882,29 +873,32 @@ private struct OrbitProcessingCursorView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let cycle = cycleProgress(for: timeline.date, duration: 0.9)
-            let circumference = CGFloat.pi * OrbitCursorMetrics.railDiameter
-            let dashOn = circumference * 0.22
+            let railSize: CGFloat = 13
+            let circumference = CGFloat.pi * railSize
+            let dashOn = circumference * 0.3
             let dashOff = max(circumference - dashOn, 0.01)
 
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.08), lineWidth: OrbitCursorMetrics.railLineWidth)
-                    .frame(width: OrbitCursorMetrics.railDiameter, height: OrbitCursorMetrics.railDiameter)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 0.7)
+                    .frame(width: railSize, height: railSize)
 
                 Circle()
                     .stroke(
-                        Color.white,
+                        Color.white.opacity(0.88),
                         style: StrokeStyle(
-                            lineWidth: OrbitCursorMetrics.arcLineWidth,
+                            lineWidth: 0.9,
                             lineCap: .round,
                             dash: [dashOn, dashOff],
                             dashPhase: 0
                         )
                     )
-                    .frame(width: OrbitCursorMetrics.railDiameter, height: OrbitCursorMetrics.railDiameter)
+                    .frame(width: railSize, height: railSize)
                     .rotationEffect(.degrees(Double(cycle) * 360))
 
-                OrbitOverlayMarkView()
+                Circle()
+                    .fill(Color.white.opacity(0.93))
+                    .frame(width: 5, height: 5)
             }
         }
     }
