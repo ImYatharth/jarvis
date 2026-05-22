@@ -110,6 +110,8 @@ struct OrbitCursorOverlayView: View {
     @State private var orbitNavigationMode: OrbitNavigationMode = .followingCursor
     @State private var triangleRotationDegrees: Double = 0
 
+    @State private var isHUDExpanded: Bool = false
+
     /// Speech bubble text shown when pointing at a detected element.
     @State private var navigationBubbleText: String = ""
     @State private var navigationBubbleOpacity: Double = 0.0
@@ -160,7 +162,10 @@ struct OrbitCursorOverlayView: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                     .animation(.spring(response: 0.28, dampingFraction: 0.82), value: orbitManager.showCodexActivityOverlay)
                     .animation(.easeInOut(duration: 0.18), value: orbitManager.activeActionDetailLine)
-                    .allowsHitTesting(false)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isHUDExpanded)
+                    .onChange(of: orbitManager.showCodexActivityOverlay) { visible in
+                        if !visible { isHUDExpanded = false }
+                    }
             }
 
             // Welcome speech bubble (first launch only)
@@ -377,7 +382,7 @@ struct OrbitCursorOverlayView: View {
     @ViewBuilder
     private var codexActivityHUD: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 Group {
                     switch orbitManager.activeActionStatus {
                     case .running, .waitingForApproval:
@@ -401,26 +406,74 @@ struct OrbitCursorOverlayView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(DS.Colors.textPrimary)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
                 DSQuietStatusChip(title: actionStatusLabel, tint: actionStatusAccentColor)
+
+                if orbitManager.voiceState == .responding {
+                    Button {
+                        orbitManager.stopSpeech()
+                    } label: {
+                        Image(systemName: "speaker.slash.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(Color.white.opacity(0.1)))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button {
+                    isHUDExpanded.toggle()
+                } label: {
+                    Image(systemName: isHUDExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    orbitManager.dismissActivityOverlay()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
             }
 
-            Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundColor(DS.Colors.textPrimary)
-                .lineLimit(2)
+            if isHUDExpanded {
+                ScrollView {
+                    Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 160)
+            } else {
+                Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .lineLimit(2)
+            }
 
             if let detail = codexHUDDetailLine {
                 Text(detail)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(DS.Colors.textSecondary)
-                    .lineLimit(2)
+                    .lineLimit(isHUDExpanded ? nil : 2)
             }
 
             if !orbitManager.recentActionUpdates.isEmpty {
                 VStack(alignment: .leading, spacing: 5) {
-                    ForEach(Array(orbitManager.recentActionUpdates.suffix(4).enumerated()), id: \.offset) { _, update in
+                    ForEach(
+                        Array(orbitManager.recentActionUpdates.suffix(isHUDExpanded ? 20 : 4).enumerated()),
+                        id: \.offset
+                    ) { _, update in
                         HStack(alignment: .top, spacing: 6) {
                             Circle()
                                 .fill(Color.white.opacity(0.55))
@@ -439,12 +492,12 @@ struct OrbitCursorOverlayView: View {
                 Text(orbitManager.codexConfigurationSummary)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(DS.Colors.textTertiary)
-                    .lineLimit(1)
+                    .lineLimit(isHUDExpanded ? nil : 1)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .frame(width: 252, alignment: .leading)
+        .frame(width: isHUDExpanded ? 340 : 252, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.clear)
