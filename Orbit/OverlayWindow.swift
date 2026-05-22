@@ -825,14 +825,13 @@ private struct OrbitCursorGlyphView: View {
 
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.22))
-                    .frame(width: 11, height: 11)
-                    .scaleEffect(glowPulse)
-                    .blur(radius: 3.5)
+                    .fill(Color.red.opacity(0.5))
+                    .frame(width: 20, height: 20)
+                    .blur(radius: 4)
 
                 Circle()
-                    .fill(Color.white.opacity(0.93))
-                    .frame(width: 5, height: 5)
+                    .fill(Color.red)
+                    .frame(width: 10, height: 10)
             }
         }
     }
