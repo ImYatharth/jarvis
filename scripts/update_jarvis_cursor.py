@@ -226,7 +226,7 @@ private struct WindowMouseEventToggle: NSViewRepresentable {
     let ignoreMouseEvents: Bool
     func makeNSView(context: Context) -> NSView { NSView() }
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+        nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents
     }
 }
 
@@ -261,6 +261,32 @@ else:
         print("  ✓ WindowMouseEventToggle already wired")
     else:
         print("  SKIP: could not find Color.black.opacity(0.001) anchor")
+
+# ── C4. Fix existing WindowMouseEventToggle (remove stale async if present) ─
+src = replace_text(
+    src,
+    "        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }",
+    "        nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents",
+    "remove DispatchQueue async from WindowMouseEventToggle"
+)
+
+# ── C5. Fix canBecomeKey on the overlay NSWindow subclass ─────────────────
+_fixed_key = False
+for old_key in [
+    "override var canBecomeKey: Bool {\n        return false\n    }",
+    "override var canBecomeKey: Bool { return false }",
+    "override var canBecomeKey: Bool { false }",
+]:
+    if old_key in src:
+        src = src.replace(old_key, "override var canBecomeKey: Bool { return !ignoresMouseEvents }", 1)
+        print("  ✓ Fixed canBecomeKey")
+        _fixed_key = True
+        break
+if not _fixed_key:
+    if "!ignoresMouseEvents" in src:
+        print("  ✓ canBecomeKey already fixed")
+    else:
+        print("  SKIP: canBecomeKey pattern not found — fix manually")
 
 # ── D. Replace codexActivityHUD computed property ─────────────────────────
 import re as _re
@@ -309,18 +335,16 @@ HUD_REPLACEMENT = f"""\
 
                 DSQuietStatusChip(title: actionStatusLabel, tint: actionStatusAccentColor)
 
-                if {manager_type}.voiceState == .responding {{
-                    Button {{
-                        {manager_type}.stopSpeech()
-                    }} label: {{
-                        Image(systemName: "speaker.slash.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }}
-                    .buttonStyle(.plain)
+                Button {{
+                    {manager_type}.stopSpeech()
+                }} label: {{
+                    Image(systemName: "speaker.slash.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
                 }}
+                .buttonStyle(.plain)
 
                 Button {{
                     isHUDExpanded.toggle()
@@ -345,20 +369,11 @@ HUD_REPLACEMENT = f"""\
                 .buttonStyle(.plain)
             }}
 
-            if isHUDExpanded {{
-                ScrollView {{
-                    Text({manager_type}.activeActionStatusSummary ?? {manager_type}.codexSessionSummary)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }}
-                .frame(maxHeight: 160)
-            }} else {{
-                Text({manager_type}.activeActionStatusSummary ?? {manager_type}.codexSessionSummary)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .lineLimit(2)
-            }}
+            Text({manager_type}.activeActionStatusSummary ?? {manager_type}.codexSessionSummary)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(DS.Colors.textPrimary)
+                .lineLimit(isHUDExpanded ? nil : 2)
+                .fixedSize(horizontal: false, vertical: isHUDExpanded)
 
             if let detail = codexHUDDetailLine {{
                 Text(detail)
@@ -462,6 +477,19 @@ else:
             print("  ✓ Added dismissActivityOverlay() and stopSpeech()")
         else:
             print("  SKIP: could not find insertion anchor in manager file")
+
+    # ── Wrap speakText calls with cleanTextForSpeech ─────────────────────────
+    tts_vars = ["finalText", "acknowledgement", "message"]
+    for var_name in tts_vars:
+        old_call = f"textToSpeechProvider.speakText({var_name})"
+        new_call = f"textToSpeechProvider.speakText(cleanTextForSpeech({var_name}))"
+        if old_call in msrc:
+            msrc = msrc.replace(old_call, new_call)
+            print(f"  ✓ Wrapped speakText({var_name}) with cleanTextForSpeech")
+        elif new_call in msrc:
+            print(f"  ✓ speakText({var_name}) already wrapped")
+        else:
+            print(f"  SKIP: speakText({var_name}) not found")
 
     manager_path.write_text(msrc)
     print(f"  → Saved {manager_path}")

@@ -1190,7 +1190,7 @@ final class JarvisManager: ObservableObject {
         actionAcknowledgementTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await textToSpeechProvider.speakText(acknowledgement)
+                try await textToSpeechProvider.speakText(cleanTextForSpeech(acknowledgement))
             } catch {
                 JarvisSupportLog.append("voice", "failed early commentary speech: \(error.localizedDescription)")
             }
@@ -1206,7 +1206,7 @@ final class JarvisManager: ObservableObject {
         voiceState = .responding
 
         do {
-            try await textToSpeechProvider.speakText(finalText)
+            try await textToSpeechProvider.speakText(cleanTextForSpeech(finalText))
         } catch {
             let visibleError = trimmedFallback?.isEmpty == false ? trimmedFallback! : error.localizedDescription
             JarvisSupportLog.append("voice", "speech failed: \(visibleError)")
@@ -1782,7 +1782,7 @@ final class JarvisManager: ObservableObject {
 
     private func speakOnboardingMessage(_ message: String) async {
         do {
-            try await textToSpeechProvider.speakText(message)
+            try await textToSpeechProvider.speakText(cleanTextForSpeech(message))
         } catch {
             JarvisSupportLog.append("voice", "failed onboarding speech: \(error.localizedDescription)")
         }

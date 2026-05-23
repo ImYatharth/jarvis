@@ -33,9 +33,7 @@ class OverlayWindow: NSWindow {
     }
 
     // Prevent window from becoming key (no focus stealing)
-    override var canBecomeKey: Bool {
-        return false
-    }
+    override var canBecomeKey: Bool { return !ignoresMouseEvents }
 
     override var canBecomeMain: Bool {
         return false
@@ -69,7 +67,7 @@ private struct WindowMouseEventToggle: NSViewRepresentable {
     let ignoreMouseEvents: Bool
     func makeNSView(context: Context) -> NSView { NSView() }
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+        nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents
     }
 }
 
@@ -162,6 +160,11 @@ struct JarvisCursorOverlayView: View {
         ZStack {
             // Nearly transparent background (helps with compositing)
             Color.black.opacity(0.001)
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
                 .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
 
             if shouldShowCodexActivityHUD {
@@ -423,18 +426,16 @@ struct JarvisCursorOverlayView: View {
 
                 DSQuietStatusChip(title: actionStatusLabel, tint: actionStatusAccentColor)
 
-                if orbitManager.voiceState == .responding {
-                    Button {
-                        orbitManager.stopSpeech()
-                    } label: {
-                        Image(systemName: "speaker.slash.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    orbitManager.stopSpeech()
+                } label: {
+                    Image(systemName: "speaker.slash.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
                 }
+                .buttonStyle(.plain)
 
                 Button {
                     isHUDExpanded.toggle()
@@ -459,20 +460,11 @@ struct JarvisCursorOverlayView: View {
                 .buttonStyle(.plain)
             }
 
-            if isHUDExpanded {
-                ScrollView {
-                    Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 160)
-            } else {
-                Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .lineLimit(2)
-            }
+            Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(DS.Colors.textPrimary)
+                .lineLimit(isHUDExpanded ? nil : 2)
+                .fixedSize(horizontal: false, vertical: isHUDExpanded)
 
             if let detail = codexHUDDetailLine {
                 Text(detail)
