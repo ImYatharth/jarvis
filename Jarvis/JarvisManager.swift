@@ -1470,6 +1470,15 @@ final class JarvisManager: ObservableObject {
         refreshActionProviderPresentation()
     }
 
+    func dismissActivityOverlay() {
+        showCodexActivityOverlay = false
+    }
+
+    func stopSpeech() {
+        textToSpeechProvider.stopPlayback()
+        fallbackTextToSpeechProvider.stopPlayback()
+    }
+
     func answerToolPrompt(with option: String) {
         guard let pendingToolPrompt else { return }
         actionProvider.respondToToolPrompt(

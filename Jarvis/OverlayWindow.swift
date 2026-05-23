@@ -64,6 +64,15 @@ struct NavigationBubbleSizePreferenceKey: PreferenceKey {
     }
 }
 
+/// Bridges SwiftUI into the containing NSWindow to toggle ignoresMouseEvents.
+private struct WindowMouseEventToggle: NSViewRepresentable {
+    let ignoreMouseEvents: Bool
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+    }
+}
+
 enum JarvisNavigationMode {
     case followingCursor
     case navigatingToTarget
@@ -110,6 +119,8 @@ struct JarvisCursorOverlayView: View {
     @State private var jarvisNavigationMode: JarvisNavigationMode = .followingCursor
     @State private var triangleRotationDegrees: Double = 0
 
+        @State private var isHUDExpanded: Bool = false
+
     /// Speech bubble text shown when pointing at a detected element.
     @State private var navigationBubbleText: String = ""
     @State private var navigationBubbleOpacity: Double = 0.0
@@ -151,6 +162,7 @@ struct JarvisCursorOverlayView: View {
         ZStack {
             // Nearly transparent background (helps with compositing)
             Color.black.opacity(0.001)
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
 
             if shouldShowCodexActivityHUD {
                 codexActivityHUD
@@ -160,7 +172,10 @@ struct JarvisCursorOverlayView: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                     .animation(.spring(response: 0.28, dampingFraction: 0.82), value: orbitManager.showCodexActivityOverlay)
                     .animation(.easeInOut(duration: 0.18), value: orbitManager.activeActionDetailLine)
-                    .allowsHitTesting(false)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isHUDExpanded)
+                    .onChange(of: orbitManager.showCodexActivityOverlay) { visible in
+                        if !visible { isHUDExpanded = false }
+                    }
             }
 
             // Welcome speech bubble (first launch only)
@@ -273,7 +288,7 @@ struct JarvisCursorOverlayView: View {
             }
 
             JarvisCursorGlyphView(isReturning: isReturningToCursor)
-                .frame(width: 28, height: 28)
+                .frame(width: 20, height: 20)
                 .rotationEffect(.degrees(triangleRotationDegrees))
                 .scaleEffect(jarvisFlightScale)
                 .opacity(jarvisCursorIsVisibleOnThisScreen && (orbitManager.voiceState == .idle || orbitManager.voiceState == .responding) ? cursorOpacity : 0)
@@ -380,7 +395,7 @@ struct JarvisCursorOverlayView: View {
     @ViewBuilder
     private var codexActivityHUD: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 Group {
                     switch orbitManager.activeActionStatus {
                     case .running, .waitingForApproval:
@@ -404,26 +419,74 @@ struct JarvisCursorOverlayView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(DS.Colors.textPrimary)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
                 DSQuietStatusChip(title: actionStatusLabel, tint: actionStatusAccentColor)
+
+                if orbitManager.voiceState == .responding {
+                    Button {
+                        orbitManager.stopSpeech()
+                    } label: {
+                        Image(systemName: "speaker.slash.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(DS.Colors.textSecondary)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(Color.white.opacity(0.1)))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button {
+                    isHUDExpanded.toggle()
+                } label: {
+                    Image(systemName: isHUDExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    orbitManager.dismissActivityOverlay()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
             }
 
-            Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundColor(DS.Colors.textPrimary)
-                .lineLimit(2)
+            if isHUDExpanded {
+                ScrollView {
+                    Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundColor(DS.Colors.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 160)
+            } else {
+                Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .lineLimit(2)
+            }
 
             if let detail = codexHUDDetailLine {
                 Text(detail)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(DS.Colors.textSecondary)
-                    .lineLimit(2)
+                    .lineLimit(isHUDExpanded ? nil : 2)
             }
 
             if !orbitManager.recentActionUpdates.isEmpty {
                 VStack(alignment: .leading, spacing: 5) {
-                    ForEach(Array(orbitManager.recentActionUpdates.suffix(4).enumerated()), id: \.offset) { _, update in
+                    ForEach(
+                        Array(orbitManager.recentActionUpdates.suffix(isHUDExpanded ? 20 : 4).enumerated()),
+                        id: \.offset
+                    ) { _, update in
                         HStack(alignment: .top, spacing: 6) {
                             Circle()
                                 .fill(Color.white.opacity(0.55))
@@ -442,12 +505,12 @@ struct JarvisCursorOverlayView: View {
                 Text(orbitManager.codexConfigurationSummary)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(DS.Colors.textTertiary)
-                    .lineLimit(1)
+                    .lineLimit(isHUDExpanded ? nil : 1)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .frame(width: 252, alignment: .leading)
+        .frame(width: isHUDExpanded ? 340 : 252, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.clear)
@@ -824,28 +887,18 @@ private struct JarvisCursorGlyphView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let cycleProgress = cycleProgress(for: timeline.date, duration: 4.0)
-            let auraOpacity = 0.75 - (0.25 * CGFloat(cos(Double(cycleProgress) * .pi * 2)))
+            let glowPulse = 1.0 + 0.35 * CGFloat(cos(Double(cycleProgress) * .pi * 2))
 
             ZStack {
-                JarvisMarkShape()
-                    .fill(
-                        Color.white.opacity(Double(0.12 * auraOpacity)),
-                        style: FillStyle(eoFill: true, antialiased: true)
-                    )
-                    .overlay(
-                        JarvisMarkShape()
-                            .stroke(
-                                Color.white.opacity(Double(auraOpacity)),
-                                style: StrokeStyle(
-                                    lineWidth: JarvisCursorMetrics.auraLineWidth,
-                                    lineJoin: .round
-                                )
-                            )
-                    )
-                    .frame(width: JarvisCursorMetrics.markSize, height: JarvisCursorMetrics.markSize)
-                    .blur(radius: JarvisCursorMetrics.auraBlurRadius)
+                Circle()
+                    .fill(Color.white.opacity(0.22))
+                    .frame(width: 11, height: 11)
+                    .scaleEffect(glowPulse)
+                    .blur(radius: 3.5)
 
-                JarvisOverlayMarkView()
+                Circle()
+                    .fill(Color.white.opacity(0.93))
+                    .frame(width: 5, height: 5)
             }
         }
     }
@@ -865,17 +918,18 @@ private struct JarvisListeningCursorView: View {
                 c2y: 1.0
             )
             let clampedAudio = max(0, min(audioPowerLevel, 1))
-            let diameter = 4.48 + (resonancePhase * (34.72 + (clampedAudio * 2.4)))
-            let strokeOpacity = max(0, (0.8 + (clampedAudio * 0.08)) * (1 - resonancePhase))
-            let strokeWidth = max(0.56, 1.96 - (1.4 * resonancePhase) + (clampedAudio * 0.12))
+            let ringDiameter = 5 + resonancePhase * (22 + clampedAudio * 6)
+            let ringOpacity = max(0, (0.75 + clampedAudio * 0.15) * (1 - resonancePhase))
+            let strokeWidth = max(0.5, 1.3 - resonancePhase * 0.9)
 
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(Double(strokeOpacity)), lineWidth: strokeWidth)
-                    .frame(width: diameter, height: diameter)
-                    .offset(x: -6.16, y: -6.16)
+                    .stroke(Color.white.opacity(Double(ringOpacity)), lineWidth: strokeWidth)
+                    .frame(width: ringDiameter, height: ringDiameter)
 
-                JarvisOverlayMarkView()
+                Circle()
+                    .fill(Color.white.opacity(0.93))
+                    .frame(width: 5, height: 5)
             }
         }
     }
@@ -885,29 +939,32 @@ private struct JarvisProcessingCursorView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let cycle = cycleProgress(for: timeline.date, duration: 0.9)
-            let circumference = CGFloat.pi * JarvisCursorMetrics.railDiameter
-            let dashOn = circumference * 0.22
+            let railSize: CGFloat = 13
+            let circumference = CGFloat.pi * railSize
+            let dashOn = circumference * 0.3
             let dashOff = max(circumference - dashOn, 0.01)
 
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.08), lineWidth: JarvisCursorMetrics.railLineWidth)
-                    .frame(width: JarvisCursorMetrics.railDiameter, height: JarvisCursorMetrics.railDiameter)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 0.7)
+                    .frame(width: railSize, height: railSize)
 
                 Circle()
                     .stroke(
-                        Color.white,
+                        Color.white.opacity(0.88),
                         style: StrokeStyle(
-                            lineWidth: JarvisCursorMetrics.arcLineWidth,
+                            lineWidth: 0.9,
                             lineCap: .round,
                             dash: [dashOn, dashOff],
                             dashPhase: 0
                         )
                     )
-                    .frame(width: JarvisCursorMetrics.railDiameter, height: JarvisCursorMetrics.railDiameter)
+                    .frame(width: railSize, height: railSize)
                     .rotationEffect(.degrees(Double(cycle) * 360))
 
-                JarvisOverlayMarkView()
+                Circle()
+                    .fill(Color.white.opacity(0.93))
+                    .frame(width: 5, height: 5)
             }
         }
     }
