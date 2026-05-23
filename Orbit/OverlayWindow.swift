@@ -64,6 +64,16 @@ struct NavigationBubbleSizePreferenceKey: PreferenceKey {
     }
 }
 
+/// Bridges SwiftUI into the containing NSWindow to toggle ignoresMouseEvents.
+/// Attach to any always-present view; updateNSView fires on every state change.
+private struct WindowMouseEventToggle: NSViewRepresentable {
+    let ignoreMouseEvents: Bool
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+    }
+}
+
 enum OrbitNavigationMode {
     case followingCursor
     case navigatingToTarget
@@ -151,8 +161,11 @@ struct OrbitCursorOverlayView: View {
 
     var body: some View {
         ZStack {
-            // Nearly transparent background (helps with compositing)
+            // Nearly transparent background (helps with compositing).
+            // Also drives the window-level ignoresMouseEvents toggle: when
+            // the HUD is active we need the window to accept clicks.
             Color.black.opacity(0.001)
+                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))
 
             if shouldShowCodexActivityHUD {
                 codexActivityHUD

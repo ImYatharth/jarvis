@@ -212,11 +212,55 @@ src = replace_text(
     src,
     "                    .allowsHitTesting(false)\n",
     "                    .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isHUDExpanded)\n"
-    "                    .onChange(of: jarvisManager.showCodexActivityOverlay) { visible in\n"
+    "                    .onChange(of: orbitManager.showCodexActivityOverlay) { visible in\n"
     "                        if !visible { isHUDExpanded = false }\n"
     "                    }\n",
     "remove allowsHitTesting / add expand animation"
 )
+
+# ── C2. Add WindowMouseEventToggle struct if not present ──────────────────
+
+TOGGLE_STRUCT = '''\
+/// Bridges SwiftUI into the containing NSWindow to toggle ignoresMouseEvents.
+private struct WindowMouseEventToggle: NSViewRepresentable {
+    let ignoreMouseEvents: Bool
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+    }
+}
+
+'''
+
+if "WindowMouseEventToggle" not in src:
+    # Insert before the navigation mode enum or cursor overlay view struct
+    for anchor in ["enum JarvisNavigationMode", "enum OrbitNavigationMode", "@MainActor\nstruct Jarvis", "@MainActor\nstruct Orbit"]:
+        if anchor in src:
+            src = src.replace(anchor, TOGGLE_STRUCT + anchor, 1)
+            print("  ✓ Added WindowMouseEventToggle struct")
+            break
+    else:
+        print("  SKIP: could not find insertion point for WindowMouseEventToggle")
+else:
+    print("  ✓ WindowMouseEventToggle already present")
+
+# ── C3. Wire toggle to the always-present background view ─────────────────
+
+for bg_old in [
+    "Color.black.opacity(0.001)\n",
+    "Color.black.opacity(0.001)\r\n",
+]:
+    if bg_old in src:
+        bg_new = ("Color.black.opacity(0.001)\n"
+                  "                .background(WindowMouseEventToggle(ignoreMouseEvents: !shouldShowCodexActivityHUD))\n")
+        src = src.replace(bg_old, bg_new, 1)
+        print("  ✓ Wired WindowMouseEventToggle to background")
+        break
+else:
+    if "WindowMouseEventToggle(ignoreMouseEvents" in src:
+        print("  ✓ WindowMouseEventToggle already wired")
+    else:
+        print("  SKIP: could not find Color.black.opacity(0.001) anchor")
 
 # ── D. Replace codexActivityHUD computed property ─────────────────────────
 import re as _re
