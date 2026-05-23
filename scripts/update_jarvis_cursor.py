@@ -226,7 +226,7 @@ private struct WindowMouseEventToggle: NSViewRepresentable {
     let ignoreMouseEvents: Bool
     func makeNSView(context: Context) -> NSView { NSView() }
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+        nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents
     }
 }
 
@@ -261,6 +261,32 @@ else:
         print("  ✓ WindowMouseEventToggle already wired")
     else:
         print("  SKIP: could not find Color.black.opacity(0.001) anchor")
+
+# ── C4. Fix existing WindowMouseEventToggle (remove stale async if present) ─
+src = replace_text(
+    src,
+    "        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }",
+    "        nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents",
+    "remove DispatchQueue async from WindowMouseEventToggle"
+)
+
+# ── C5. Fix canBecomeKey on the overlay NSWindow subclass ─────────────────
+_fixed_key = False
+for old_key in [
+    "override var canBecomeKey: Bool {\n        return false\n    }",
+    "override var canBecomeKey: Bool { return false }",
+    "override var canBecomeKey: Bool { false }",
+]:
+    if old_key in src:
+        src = src.replace(old_key, "override var canBecomeKey: Bool { return !ignoresMouseEvents }", 1)
+        print("  ✓ Fixed canBecomeKey")
+        _fixed_key = True
+        break
+if not _fixed_key:
+    if "!ignoresMouseEvents" in src:
+        print("  ✓ canBecomeKey already fixed")
+    else:
+        print("  SKIP: canBecomeKey pattern not found — fix manually")
 
 # ── D. Replace codexActivityHUD computed property ─────────────────────────
 import re as _re

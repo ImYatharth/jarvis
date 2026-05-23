@@ -33,9 +33,7 @@ class OverlayWindow: NSWindow {
     }
 
     // Prevent window from becoming key (no focus stealing)
-    override var canBecomeKey: Bool {
-        return false
-    }
+    override var canBecomeKey: Bool { return !ignoresMouseEvents }
 
     override var canBecomeMain: Bool {
         return false
@@ -70,7 +68,7 @@ private struct WindowMouseEventToggle: NSViewRepresentable {
     let ignoreMouseEvents: Bool
     func makeNSView(context: Context) -> NSView { NSView() }
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents }
+        nsView.window?.ignoresMouseEvents = self.ignoreMouseEvents
     }
 }
 
