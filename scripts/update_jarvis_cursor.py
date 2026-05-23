@@ -478,6 +478,19 @@ else:
         else:
             print("  SKIP: could not find insertion anchor in manager file")
 
+    # ── Wrap speakText calls with cleanTextForSpeech ─────────────────────────
+    tts_vars = ["finalText", "acknowledgement", "message"]
+    for var_name in tts_vars:
+        old_call = f"textToSpeechProvider.speakText({var_name})"
+        new_call = f"textToSpeechProvider.speakText(cleanTextForSpeech({var_name}))"
+        if old_call in msrc:
+            msrc = msrc.replace(old_call, new_call)
+            print(f"  ✓ Wrapped speakText({var_name}) with cleanTextForSpeech")
+        elif new_call in msrc:
+            print(f"  ✓ speakText({var_name}) already wrapped")
+        else:
+            print(f"  SKIP: speakText({var_name}) not found")
+
     manager_path.write_text(msrc)
     print(f"  → Saved {manager_path}")
 

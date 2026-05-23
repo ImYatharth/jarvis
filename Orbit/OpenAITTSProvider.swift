@@ -148,7 +148,7 @@ final class OpenAITTSProvider: NSObject, TextToSpeechProvider, AVAudioPlayerDele
     private var speechInstructions: String {
         switch voicePreset {
         case .localVoice, .cloudVoice:
-            return "Speak clearly, naturally, and briefly."
+            return "Speak warmly and conversationally, like a knowledgeable friend explaining something. Use a natural, flowing pace. Avoid a robotic or formal tone."
         }
     }
 }

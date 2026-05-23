@@ -2,6 +2,58 @@ import AppKit
 import Combine
 import SwiftUI
 
+// MARK: - TTS text cleaner
+
+/// Strips markdown formatting so the TTS provider reads clean prose instead
+/// of saying "hashtag", "asterisk asterisk", or reading code fences aloud.
+func cleanTextForSpeech(_ text: String) -> String {
+    var s = text
+
+    // Fenced code blocks — replace with a short spoken cue
+    s = s.replacingOccurrences(
+        of: #"```[^\n]*\n[\s\S]*?```"#,
+        with: "…code block…",
+        options: .regularExpression)
+
+    // Heading markers: # ## ### etc. → just the heading text
+    s = s.replacingOccurrences(
+        of: #"(?m)^#{1,6}\s+"#, with: "", options: .regularExpression)
+
+    // Bold + italic combinations ***text*** / **text** / *text*
+    s = s.replacingOccurrences(
+        of: #"\*{1,3}([^*\n]+)\*{1,3}"#, with: "$1", options: .regularExpression)
+
+    // Underline-style emphasis __text__ / _text_
+    s = s.replacingOccurrences(
+        of: #"_{1,3}([^_\n]+)_{1,3}"#, with: "$1", options: .regularExpression)
+
+    // Inline code `text`
+    s = s.replacingOccurrences(
+        of: #"`([^`\n]+)`"#, with: "$1", options: .regularExpression)
+
+    // Markdown links [display](url) → display text only
+    s = s.replacingOccurrences(
+        of: #"\[([^\]]+)\]\([^\)]+\)"#, with: "$1", options: .regularExpression)
+
+    // Unordered list markers — keep the item text
+    s = s.replacingOccurrences(
+        of: #"(?m)^[ \t]*[-*+]\s+"#, with: "", options: .regularExpression)
+
+    // Ordered list markers (1. 2. etc.) — keep the item text
+    s = s.replacingOccurrences(
+        of: #"(?m)^[ \t]*\d+\.\s+"#, with: "", options: .regularExpression)
+
+    // Horizontal rules (--- / ***) — silence
+    s = s.replacingOccurrences(
+        of: #"(?m)^[-*_]{3,}\s*$"#, with: "", options: .regularExpression)
+
+    // Collapse runs of 3+ newlines down to two
+    s = s.replacingOccurrences(
+        of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+
+    return s.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 // MARK: - Response Overlay Window Manager
 
 final class JarvisResponseOverlayManager: NSObject, NSWindowDelegate {
