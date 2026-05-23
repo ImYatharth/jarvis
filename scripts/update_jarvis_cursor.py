@@ -335,18 +335,16 @@ HUD_REPLACEMENT = f"""\
 
                 DSQuietStatusChip(title: actionStatusLabel, tint: actionStatusAccentColor)
 
-                if {manager_type}.voiceState == .responding {{
-                    Button {{
-                        {manager_type}.stopSpeech()
-                    }} label: {{
-                        Image(systemName: "speaker.slash.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }}
-                    .buttonStyle(.plain)
+                Button {{
+                    {manager_type}.stopSpeech()
+                }} label: {{
+                    Image(systemName: "speaker.slash.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
                 }}
+                .buttonStyle(.plain)
 
                 Button {{
                     isHUDExpanded.toggle()
@@ -371,20 +369,11 @@ HUD_REPLACEMENT = f"""\
                 .buttonStyle(.plain)
             }}
 
-            if isHUDExpanded {{
-                ScrollView {{
-                    Text({manager_type}.activeActionStatusSummary ?? {manager_type}.codexSessionSummary)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }}
-                .frame(maxHeight: 160)
-            }} else {{
-                Text({manager_type}.activeActionStatusSummary ?? {manager_type}.codexSessionSummary)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .lineLimit(2)
-            }}
+            Text({manager_type}.activeActionStatusSummary ?? {manager_type}.codexSessionSummary)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(DS.Colors.textPrimary)
+                .lineLimit(isHUDExpanded ? nil : 2)
+                .fixedSize(horizontal: false, vertical: isHUDExpanded)
 
             if let detail = codexHUDDetailLine {{
                 Text(detail)

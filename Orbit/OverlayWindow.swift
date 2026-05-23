@@ -421,18 +421,16 @@ struct OrbitCursorOverlayView: View {
 
                 DSQuietStatusChip(title: actionStatusLabel, tint: actionStatusAccentColor)
 
-                if orbitManager.voiceState == .responding {
-                    Button {
-                        orbitManager.stopSpeech()
-                    } label: {
-                        Image(systemName: "speaker.slash.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .frame(width: 20, height: 20)
-                            .background(Circle().fill(Color.white.opacity(0.1)))
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    orbitManager.stopSpeech()
+                } label: {
+                    Image(systemName: "speaker.slash.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.white.opacity(0.1)))
                 }
+                .buttonStyle(.plain)
 
                 Button {
                     isHUDExpanded.toggle()
@@ -457,20 +455,11 @@ struct OrbitCursorOverlayView: View {
                 .buttonStyle(.plain)
             }
 
-            if isHUDExpanded {
-                ScrollView {
-                    Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundColor(DS.Colors.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 160)
-            } else {
-                Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .lineLimit(2)
-            }
+            Text(orbitManager.activeActionStatusSummary ?? orbitManager.codexSessionSummary)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(DS.Colors.textPrimary)
+                .lineLimit(isHUDExpanded ? nil : 2)
+                .fixedSize(horizontal: false, vertical: isHUDExpanded)
 
             if let detail = codexHUDDetailLine {
                 Text(detail)
