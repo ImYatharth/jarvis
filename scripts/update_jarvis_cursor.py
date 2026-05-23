@@ -219,8 +219,19 @@ src = replace_text(
 )
 
 # ── D. Replace codexActivityHUD computed property ─────────────────────────
-# Detect the manager type name used in this file
-manager_type = "jarvisManager" if "jarvisManager" in src else "orbitManager"
+import re as _re
+
+# Detect the manager variable name from @ObservedObject declaration
+_m = _re.search(r'@ObservedObject var (\w+):', src)
+manager_type = _m.group(1) if _m else "orbitManager"
+print(f"  Detected manager variable: {manager_type}")
+
+# Detect supporting type names from the rest of the file
+spinner_name  = "JarvisMiniSpinner"  if "struct JarvisMiniSpinner"  in src else "OrbitMiniSpinner"
+mark_name     = "JarvisMarkView"     if "JarvisMarkView"            in src else "OrbitMarkView"
+glass_card_fn = "jarvisGlassCard"    if ".jarvisGlassCard"          in src else "orbitGlassCard"
+hud_title     = "Jarvis"             if 'Text("Jarvis")'            in src else "Codex"
+print(f"  Spinner: {spinner_name}, Mark: {mark_name}, GlassCard: .{glass_card_fn}, Title: {hud_title}")
 
 HUD_REPLACEMENT = f"""\
 @ViewBuilder
@@ -230,7 +241,7 @@ HUD_REPLACEMENT = f"""\
                 Group {{
                     switch {manager_type}.activeActionStatus {{
                     case .running, .waitingForApproval:
-                        JarvisMiniSpinner(tint: actionStatusAccentColor)
+                        {spinner_name}(tint: actionStatusAccentColor)
                     case .completed:
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(DS.Colors.success)
@@ -241,12 +252,12 @@ HUD_REPLACEMENT = f"""\
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(DS.Colors.warning)
                     case .idle:
-                        JarvisMarkView(size: 13)
+                        {mark_name}(size: 13)
                     }}
                 }}
                 .frame(width: 14, height: 14)
 
-                Text("Jarvis")
+                Text("{hud_title}")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(DS.Colors.textPrimary)
 
@@ -345,7 +356,7 @@ HUD_REPLACEMENT = f"""\
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.clear)
-                .jarvisGlassCard(
+                .{glass_card_fn}(
                     shape: RoundedRectangle(cornerRadius: 18, style: .continuous),
                     fillOpacity: 0.36,
                     borderOpacity: 0.15,
